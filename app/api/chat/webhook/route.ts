@@ -26,7 +26,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 			console.log("ℹ️ Ignoring webhook type:", webhookData.type);
 		}
 
-		return new Response("OK", { status: 200 });
+		return new NextResponse("OK", { status: 200 });
 	} catch (error: any) {
 		console.error("❌ Error processing webhook:", error);
 		console.error("Error details:", error.message);
