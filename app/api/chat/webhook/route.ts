@@ -25,26 +25,76 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 	try {
 		console.log("📨 Webhook received!");
 		const requestBodyText = await request.text();
-		const headers = Object.fromEntries(request.headers);
+		
+		// Preserve original header casing - Next.js/Netlify may lowercase headers
+		// but Whop SDK might need original casing
+		const headers: Record<string, string> = {};
+		request.headers.forEach((value, key) => {
+			headers[key] = value;
+		});
+
+		// Log headers for debugging (but don't log secrets)
+		console.log("Received headers:", Object.keys(headers));
+		console.log("Header keys:", Object.keys(headers).join(", "));
+		
+		// Check if webhook secret is configured
+		const webhookSecret = process.env.WHOP_WEBHOOK_SECRET;
+		if (!webhookSecret) {
+			console.error("❌ WHOP_WEBHOOK_SECRET environment variable is not set!");
+			return NextResponse.json({ 
+				error: "Webhook secret not configured",
+				details: "WHOP_WEBHOOK_SECRET environment variable is missing"
+			}, { status: 500 });
+		}
+		console.log("✅ Webhook secret is configured");
 
 		// Validate webhook
-		const webhookData = whopsdk.webhooks.unwrap(requestBodyText, { headers });
-		console.log("Webhook type:", webhookData.type);
-		console.log("Webhook data:", JSON.stringify(webhookData.data, null, 2));
+		try {
+			const webhookData = whopsdk.webhooks.unwrap(requestBodyText, { headers });
+			console.log("Webhook type:", webhookData.type);
+			console.log("Webhook data:", JSON.stringify(webhookData.data, null, 2));
 
-		// Handle chat message events
-		if (webhookData.type === "chat.message.created") {
-			console.log("✅ Processing chat message event");
-			executeAsync(() => handleChatMessage(webhookData.data));
-		} else {
-			console.log("ℹ️ Ignoring webhook type:", webhookData.type);
+			// Handle chat message events
+			if (webhookData.type === "chat.message.created") {
+				console.log("✅ Processing chat message event");
+				executeAsync(() => handleChatMessage(webhookData.data));
+			} else {
+				console.log("ℹ️ Ignoring webhook type:", webhookData.type);
+			}
+
+			return new NextResponse("OK", { status: 200 });
+		} catch (unwrapError: any) {
+			console.error("❌ Webhook unwrap failed:", unwrapError);
+			console.error("Error type:", unwrapError.constructor?.name);
+			console.error("Error message:", unwrapError.message);
+			console.error("Received headers count:", Object.keys(headers).length);
+			
+			// Log which headers we received (for debugging, but hide values)
+			const headerNames = Object.keys(headers);
+			console.error("Header names received:", headerNames.join(", "));
+			
+			// Check if webhook secret might be wrong
+			if (unwrapError.message?.includes("headers") || unwrapError.message?.includes("signature")) {
+				console.error("⚠️ Possible issues:");
+				console.error("1. WHOP_WEBHOOK_SECRET in Netlify might not match Whop dashboard");
+				console.error("2. Whop might not be sending the required headers");
+				console.error("3. Headers might be getting modified by Netlify");
+			}
+			
+			return NextResponse.json({ 
+				error: "Invalid webhook", 
+				details: unwrapError.message,
+				hint: "Check that WHOP_WEBHOOK_SECRET in Netlify matches the secret in Whop dashboard"
+			}, { status: 400 });
 		}
-
-		return new NextResponse("OK", { status: 200 });
 	} catch (error: any) {
 		console.error("❌ Error processing webhook:", error);
 		console.error("Error details:", error.message);
-		return NextResponse.json({ error: "Invalid webhook", details: error.message }, { status: 400 });
+		console.error("Error stack:", error.stack);
+		return NextResponse.json({ 
+			error: "Internal server error", 
+			details: error.message 
+		}, { status: 500 });
 	}
 }
 
