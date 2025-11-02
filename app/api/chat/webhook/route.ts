@@ -62,12 +62,14 @@ async function handleChatMessage(message: any) {
 		}
 
 		if (!experienceId) {
-			console.log("Missing experience_id in webhook payload");
+			console.log("❌ Missing experience_id in webhook payload");
+			console.log("Full message payload:", JSON.stringify(message, null, 2));
 			return;
 		}
 
 		if (!channelId) {
-			console.log("Missing channel_id in webhook payload");
+			console.log("❌ Missing channel_id in webhook payload");
+			console.log("Full message payload:", JSON.stringify(message, null, 2));
 			return;
 		}
 
@@ -79,6 +81,7 @@ async function handleChatMessage(message: any) {
 			.single();
 
 		if (!config) {
+			console.log("❌ Bot not configured for this experience, ignoring message");
 			return;
 		}
 
@@ -103,6 +106,7 @@ async function handleChatMessage(message: any) {
 			.trim();
 
 		if (!question) {
+			console.log("❌ Question is empty after removing bot mention, ignoring");
 			return;
 		}
 
@@ -134,16 +138,27 @@ async function handleChatMessage(message: any) {
 		}
 
 		// Store in database
-		await supabase.from("chat_messages").insert({
-			experience_id: experienceId,
-			channel_id: channelId,
-			message_id: message.id,
-			user_id: message.user_id || "unknown",
-			content: question,
-			response,
-		});
-	} catch (error) {
-		console.error("Error handling chat message:", error);
+		try {
+			const { error: dbError } = await supabase.from("chat_messages").insert({
+				experience_id: experienceId,
+				channel_id: channelId,
+				message_id: message.id,
+				user_id: message.user_id || "unknown",
+				content: question,
+				response,
+			});
+			if (dbError) {
+				console.error("❌ Error storing message in database:", dbError);
+			} else {
+				console.log("✅ Chat message and response stored in database");
+			}
+		} catch (dbError) {
+			console.error("❌ Error storing message in database:", dbError);
+		}
+	} catch (error: any) {
+		console.error("❌ Error handling chat message:", error);
+		console.error("Error details:", error.message);
+		console.error("Error stack:", error.stack);
 	}
 }
 
