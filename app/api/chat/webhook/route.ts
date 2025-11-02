@@ -1,8 +1,22 @@
-import { waitUntil } from "@vercel/functions";
 import { NextRequest, NextResponse } from "next/server";
 import { whopsdk } from "@/lib/whop-sdk";
 import { supabase } from "@/lib/supabase";
 import { generateResponse } from "@/lib/ai";
+
+// Helper to use waitUntil on Vercel, but work without it on Netlify/other platforms
+function executeAsync(fn: () => Promise<void>) {
+	try {
+		// Try to use Vercel's waitUntil if available
+		const { waitUntil } = require("@vercel/functions");
+		waitUntil(fn());
+	} catch {
+		// On Netlify or other platforms, execute directly
+		// This won't block the response since it's fire-and-forget
+		fn().catch((error) => {
+			console.error("Error in async webhook handler:", error);
+		});
+	}
+}
 
 /**
  * POST /api/chat/webhook - Handle chat webhook events from Whop (future-proof)
@@ -21,7 +35,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 		// Handle chat message events
 		if (webhookData.type === "chat.message.created") {
 			console.log("✅ Processing chat message event");
-			waitUntil(handleChatMessage(webhookData.data));
+			executeAsync(() => handleChatMessage(webhookData.data));
 		} else {
 			console.log("ℹ️ Ignoring webhook type:", webhookData.type);
 		}
@@ -117,24 +131,62 @@ async function handleChatMessage(message: any) {
 
 		// Send reply
 		// Try different possible API structures
+		let sentSuccessfully = false;
+		let sendMethod = "none";
+		let sendError: any = null;
+
 		try {
 			console.log(`📤 Sending reply to channel ${channelId}...`);
+			
+			// Try different possible API structures
 			if (whopsdk.channels?.messages?.create) {
 				await whopsdk.channels.messages.create(channelId, {
 					content: response,
 				});
+				sentSuccessfully = true;
+				sendMethod = "channels.messages.create";
 				console.log("✅ Reply sent successfully via channels.messages.create");
 			} else if (whopsdk.messages?.create) {
 				await whopsdk.messages.create(channelId, {
 					content: response,
 				});
+				sentSuccessfully = true;
+				sendMethod = "messages.create";
 				console.log("✅ Reply sent successfully via messages.create");
+			} else if (whopsdk.channels?.sendMessage) {
+				await whopsdk.channels.sendMessage(channelId, {
+					content: response,
+				});
+				sentSuccessfully = true;
+				sendMethod = "channels.sendMessage";
+				console.log("✅ Reply sent successfully via channels.sendMessage");
+			} else if (whopsdk.chat?.messages?.create) {
+				await whopsdk.chat.messages.create(channelId, {
+					content: response,
+				});
+				sentSuccessfully = true;
+				sendMethod = "chat.messages.create";
+				console.log("✅ Reply sent successfully via chat.messages.create");
 			} else {
+				sendError = "Could not find any message sending method in Whop SDK";
 				console.error("❌ Could not find messages.create method in Whop SDK");
+				console.error("Available SDK properties:", Object.keys(whopsdk));
+				if (whopsdk.channels) {
+					console.error("Available channels properties:", Object.keys(whopsdk.channels));
+				}
 			}
 		} catch (error: any) {
+			sendError = error.message || error.toString();
 			console.error("❌ Error sending reply:", error);
-			console.error("Error details:", error.message);
+			console.error("Error details:", sendError);
+			console.error("Error stack:", error.stack);
+		}
+
+		if (!sentSuccessfully) {
+			console.error("⚠️ Response generated but could not be sent to chat");
+			console.error("Generated response:", response.substring(0, 200));
+			console.error("Send error:", sendError);
+			console.error("Send method attempted:", sendMethod);
 		}
 
 		// Store in database

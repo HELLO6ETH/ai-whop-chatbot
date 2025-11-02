@@ -123,21 +123,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
 				// Send reply to chat
 				// Try different possible API structures
+				let sentSuccessfully = false;
 				try {
 					if (whopsdk.channels?.messages?.create) {
 						await whopsdk.channels.messages.create(channelId, {
 							content: response,
 						});
+						sentSuccessfully = true;
 					} else if (whopsdk.messages?.create) {
 						await whopsdk.messages.create(channelId, {
 							content: response,
 						});
+						sentSuccessfully = true;
+					} else if (whopsdk.channels?.sendMessage) {
+						await whopsdk.channels.sendMessage(channelId, {
+							content: response,
+						});
+						sentSuccessfully = true;
+					} else if (whopsdk.chat?.messages?.create) {
+						await whopsdk.chat.messages.create(channelId, {
+							content: response,
+						});
+						sentSuccessfully = true;
 					} else {
 						console.error("Could not find messages.create method in Whop SDK");
+						console.error("Available SDK properties:", Object.keys(whopsdk));
 						throw new Error("Whop SDK API structure may differ for message creation");
 					}
 				} catch (msgError: any) {
 					console.error("Error sending message:", msgError);
+					console.error("Error details:", msgError.message || msgError.toString());
 					throw msgError;
 				}
 
