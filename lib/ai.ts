@@ -155,7 +155,7 @@ export async function findRelevantContext(
 			.eq("experience_id", experienceId)
 			.limit(limit);
 
-		return fallbackData?.map((e) => e.content) || [];
+		return fallbackData?.map((e: { content: string }) => e.content) || [];
 	}
 
 	return data?.map((item: { content: string }) => item.content) || [];
