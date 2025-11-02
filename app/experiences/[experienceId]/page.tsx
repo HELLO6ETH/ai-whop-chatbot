@@ -73,6 +73,9 @@ export default async function ExperiencePage({
 		}
 	} catch (error: any) {
 		console.error("Authentication/Authorization error:", error);
+		const isNetlify = process.env.NETLIFY === "true" || process.env.VERCEL === "true";
+		const apiKeyPreview = process.env.WHOP_API_KEY ? `${process.env.WHOP_API_KEY.substring(0, 10)}...` : "Not set";
+		
 		return (
 			<div className="flex flex-col p-8 gap-4">
 				<h1 className="text-9 font-bold">Authentication Error</h1>
@@ -81,10 +84,23 @@ export default async function ExperiencePage({
 				</p>
 				<ul className="list-disc list-inside text-3 text-gray-10 mt-2 space-y-1">
 					<li>You are logged into Whop</li>
-					<li>You are accessing this page through the Whop app (not direct localhost)</li>
-					<li>Your Whop API credentials are correctly set in .env.local</li>
+					<li>You are accessing this page <strong>through the Whop app</strong> (not directly via Netlify URL)</li>
+					<li>Your Whop API credentials are correctly set in Netlify environment variables</li>
 					<li>The app is installed in your Whop community</li>
+					<li>The Base URL in Whop Dashboard matches your Netlify deployment URL</li>
 				</ul>
+				<div className="bg-gray-100 p-4 rounded mt-4">
+					<p className="text-2 font-semibold mb-2">Debugging Info:</p>
+					<ul className="list-disc list-inside text-2 text-gray-10 space-y-1">
+						<li>WHOP_API_KEY: {apiKeyPreview}</li>
+						<li>NEXT_PUBLIC_WHOP_APP_ID: {process.env.NEXT_PUBLIC_WHOP_APP_ID ? "✅ Set" : "❌ Missing"}</li>
+						<li>Deployment: {isNetlify ? "Netlify/Vercel" : "Local"}</li>
+					</ul>
+				</div>
+				<p className="text-2 text-gray-10 mt-4">
+					<strong>Important:</strong> When deployed, you must access the app through Whop (not the direct Netlify URL). 
+					Go to your Whop community → Tools → Your App, or navigate via the Whop Dashboard.
+				</p>
 				<p className="text-2 text-gray-10 mt-4">
 					Error details: {error.message}
 				</p>
