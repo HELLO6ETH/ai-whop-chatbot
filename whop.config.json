@@ -1,0 +1,11 @@
+{
+  "permissions": [
+    "chat:read",
+    "chat:message:create",
+    "chat:moderate",
+    "experiences:read",
+    "companies:read",
+    "me:read"
+  ]
+}
+
