@@ -36,11 +36,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 		}
 
 		const botName = config.bot_name || "CoachBot";
-		const channelId = config.channel_id;
-
-		if (!channelId) {
-			return NextResponse.json({ error: "No channel configured" }, { status: 400 });
-		}
+		// Use experience_id directly - Whop SDK supports using experience_id as channel_id
+		const channelId = config.channel_id || experience_id;
 
 		// Get recent messages from the channel using Whop SDK
 		// Based on Whop SDK: client.messages.list({ channel_id, direction, first })
@@ -90,13 +87,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
 		const lastProcessedId = lastMessage?.message_id;
 
-		// Filter for new messages that mention the bot (just check if bot name appears)
+		// Filter for new messages that mention the bot
+		// Message structure: { id, content, user: { id, name, username }, ... }
 		const newMentions = messageList.filter((msg: any) => {
 			// Skip if already processed
 			if (lastProcessedId && msg.id === lastProcessedId) {
 				return false;
 			}
 
+			// Check if bot name is mentioned in message content
 			const content = (msg.content || "").toLowerCase();
 			return content.includes(botName.toLowerCase());
 		});
@@ -147,11 +146,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 				}
 
 				// Store in database
+				// Message structure includes: { id, content, user: { id, name, username }, ... }
 				await supabase.from("chat_messages").insert({
 					experience_id,
 					channel_id: channelId,
 					message_id: message.id,
-					user_id: message.user_id || message.user?.id || "unknown",
+					user_id: message.user?.id || message.user_id || "unknown",
 					content: question,
 					response,
 				});

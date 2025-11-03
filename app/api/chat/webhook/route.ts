@@ -128,28 +128,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 async function handleChatMessage(message: any) {
 	try {
 		console.log("💬 Processing chat message:", JSON.stringify(message, null, 2));
-		// Extract channel and experience IDs from webhook payload
-		const channelId = message.channel_id || message.channel?.id;
-		console.log("Channel ID:", channelId);
 		
-		// Experience ID might be in different places in the webhook payload
+		// Extract experience ID from webhook payload
+		// According to Whop docs, channel_id can be experience_id, so we prioritize experience_id
 		let experienceId =
 			message.experience_id ||
 			message.experience?.id ||
 			message.channel?.experience_id ||
-			message.channel?.experience?.id;
-
-		// If we still don't have experience_id, try to get it from channel
-		if (!experienceId && channelId) {
-			try {
-				// Try to fetch channel info to get experience_id
-				if (whopsdk.channels?.retrieve) {
-					const channel = await whopsdk.channels.retrieve(channelId);
-					experienceId = channel?.experience_id || channel?.experience?.id;
-				}
-			} catch (error) {
-				console.error("Could not fetch channel to get experience_id:", error);
-			}
+			message.channel?.experience?.id ||
+			message.channel_id; // channel_id might actually be experience_id
+		
+		// Also try to extract from message structure (message might be nested)
+		if (!experienceId) {
+			experienceId = message.channel_id || message.channel?.id;
 		}
 
 		if (!experienceId) {
@@ -158,11 +149,9 @@ async function handleChatMessage(message: any) {
 			return;
 		}
 
-		if (!channelId) {
-			console.log("❌ Missing channel_id in webhook payload");
-			console.log("Full message payload:", JSON.stringify(message, null, 2));
-			return;
-		}
+		// According to Whop SDK docs, we can use experience_id as channel_id
+		const channelId = experienceId;
+		console.log("Using channel/experience ID:", channelId);
 
 		// Get bot configuration
 		const { data: config } = await supabase
@@ -177,10 +166,13 @@ async function handleChatMessage(message: any) {
 		}
 
 		const botName = config.bot_name || "CoachBot";
-		const content = (message.content || "").toLowerCase();
+		// Message structure: { id, content, user: { id, name, username }, ... }
+		const messageContent = message.content || "";
+		const content = messageContent.toLowerCase();
 		const botNameLower = botName.toLowerCase();
-		console.log(`🔍 Checking mention - Bot name: "${botName}", Message: "${message.content}"`);
-		// Just check if the bot name appears in the message (case-insensitive)
+		console.log(`🔍 Checking mention - Bot name: "${botName}", Message: "${messageContent}"`);
+		
+		// Check if the bot name appears in the message (case-insensitive)
 		const isMention = content.includes(botNameLower);
 		console.log(`Mention detected: ${isMention}`);
 
@@ -191,8 +183,8 @@ async function handleChatMessage(message: any) {
 
 		console.log(`✅ Bot mentioned! Processing message...`);
 
-		// Extract question
-		const question = message.content
+		// Extract question (remove bot mention)
+		const question = messageContent
 			.replace(new RegExp(`@?${botName}`, "gi"), "")
 			.trim();
 
@@ -243,12 +235,13 @@ async function handleChatMessage(message: any) {
 		}
 
 		// Store in database
+		// Message structure: { id, content, user: { id, name, username }, ... }
 		try {
 			const { error: dbError } = await supabase.from("chat_messages").insert({
 				experience_id: experienceId,
 				channel_id: channelId,
 				message_id: message.id,
-				user_id: message.user_id || "unknown",
+				user_id: message.user?.id || message.user_id || "unknown",
 				content: question,
 				response,
 			});

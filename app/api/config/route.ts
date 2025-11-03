@@ -210,6 +210,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 		}
 
 		// Upsert configuration
+		// Note: channel_id is optional - Whop SDK accepts experience_id as channel_id
 		const { data, error } = await supabase
 			.from("bot_config")
 			.upsert(
@@ -218,7 +219,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 					bot_name: bot_name || "CoachBot",
 					bot_avatar_url: bot_avatar_url || null,
 					personality: personality || "friendly",
-					channel_id: null, // Not needed with webhooks
+					channel_id: channel_id || null, // Optional - can use experience_id directly
 					updated_at: new Date().toISOString(),
 				},
 				{
