@@ -11,3 +11,8 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# Scheduled functions for polling chat messages
+# This runs every minute to check for new messages mentioning the bot
+[[plugins]]
+  package = "@netlify/plugin-scheduled-functions"
+

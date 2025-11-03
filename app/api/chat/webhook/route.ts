@@ -54,12 +54,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 			console.log("Webhook type:", webhookData.type);
 			console.log("Webhook data:", JSON.stringify(webhookData.data, null, 2));
 
-			// Handle chat message events
-			if (webhookData.type === "chat.message.created") {
-				console.log("✅ Processing chat message event");
+			// Handle different webhook event types
+			// Note: Whop may not have chat.message.created, so we'll handle any message-related events
+			if (webhookData.type === "chat.message.created" || 
+			    webhookData.type === "message.created" ||
+			    webhookData.type === "chat.message" ||
+			    webhookData.type?.includes("message")) {
+				console.log(`✅ Processing message event: ${webhookData.type}`);
 				executeAsync(() => handleChatMessage(webhookData.data));
 			} else {
-				console.log("ℹ️ Ignoring webhook type:", webhookData.type);
+				console.log(`ℹ️ Ignoring webhook type: ${webhookData.type} (not a chat message event)`);
+				console.log("💡 Tip: Use polling endpoint /api/chat/poll if chat message webhooks aren't supported");
 			}
 
 			return new NextResponse("OK", { status: 200 });
