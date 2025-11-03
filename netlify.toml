@@ -11,10 +11,3 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# Note: Scheduled functions plugin removed - not needed for webhook-based operation
-# If you want to use polling instead of webhooks, install:
-# pnpm add -D @netlify/plugin-scheduled-functions
-# and uncomment the plugin below
-# [[plugins]]
-#   package = "@netlify/plugin-scheduled-functions"
-
