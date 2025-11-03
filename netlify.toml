@@ -11,8 +11,10 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
-# Scheduled functions for polling chat messages
-# This runs every minute to check for new messages mentioning the bot
-[[plugins]]
-  package = "@netlify/plugin-scheduled-functions"
+# Note: Scheduled functions plugin removed - not needed for webhook-based operation
+# If you want to use polling instead of webhooks, install:
+# pnpm add -D @netlify/plugin-scheduled-functions
+# and uncomment the plugin below
+# [[plugins]]
+#   package = "@netlify/plugin-scheduled-functions"
 
