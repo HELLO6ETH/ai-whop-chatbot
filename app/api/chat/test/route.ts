@@ -64,7 +64,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 		);
 		console.log(`✅ Generated response: "${response.substring(0, 100)}..."`);
 
-		// Try to send reply
+		// Send reply using Whop SDK
+		// Based on Whop SDK: client.messages.create({ channel_id, content })
 		let sentSuccessfully = false;
 		let sendMethod = "none";
 		let sendError: any = null;
@@ -72,30 +73,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 		try {
 			console.log(`📤 Attempting to send reply to channel ${channel_id}...`);
 			
-			// Try different possible API structures
-			if (whopsdk.channels?.messages?.create) {
-				await whopsdk.channels.messages.create(channel_id, {
-					content: response,
-				});
-				sentSuccessfully = true;
-				sendMethod = "channels.messages.create";
-				console.log("✅ Reply sent successfully via channels.messages.create");
-			} else if (whopsdk.messages?.create) {
-				await whopsdk.messages.create(channel_id, {
+			if (whopsdk.messages?.create) {
+				await whopsdk.messages.create({
+					channel_id: channel_id,
 					content: response,
 				});
 				sentSuccessfully = true;
 				sendMethod = "messages.create";
 				console.log("✅ Reply sent successfully via messages.create");
-			} else if (whopsdk.channels?.sendMessage) {
-				await whopsdk.channels.sendMessage(channel_id, {
-					content: response,
-				});
-				sentSuccessfully = true;
-				sendMethod = "channels.sendMessage";
-				console.log("✅ Reply sent successfully via channels.sendMessage");
 			} else {
-				sendError = "Could not find any message sending method in Whop SDK";
+				sendError = "Could not find messages.create method in Whop SDK";
 				console.error("❌ Could not find messages.create method in Whop SDK");
 			}
 		} catch (error: any) {

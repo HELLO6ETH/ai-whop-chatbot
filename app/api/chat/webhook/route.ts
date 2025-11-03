@@ -206,8 +206,8 @@ async function handleChatMessage(message: any) {
 		const response = await generateResponse(question, experienceId, config.personality, botName);
 		console.log(`✅ Generated response: "${response.substring(0, 100)}..."`);
 
-		// Send reply
-		// Try different possible API structures
+		// Send reply using Whop SDK
+		// Based on Whop SDK: client.messages.create({ channel_id, content })
 		let sentSuccessfully = false;
 		let sendMethod = "none";
 		let sendError: any = null;
@@ -215,42 +215,18 @@ async function handleChatMessage(message: any) {
 		try {
 			console.log(`📤 Sending reply to channel ${channelId}...`);
 			
-			// Try different possible API structures
-			if (whopsdk.channels?.messages?.create) {
-				await whopsdk.channels.messages.create(channelId, {
-					content: response,
-				});
-				sentSuccessfully = true;
-				sendMethod = "channels.messages.create";
-				console.log("✅ Reply sent successfully via channels.messages.create");
-			} else if (whopsdk.messages?.create) {
-				await whopsdk.messages.create(channelId, {
+			if (whopsdk.messages?.create) {
+				await whopsdk.messages.create({
+					channel_id: channelId,
 					content: response,
 				});
 				sentSuccessfully = true;
 				sendMethod = "messages.create";
 				console.log("✅ Reply sent successfully via messages.create");
-			} else if (whopsdk.channels?.sendMessage) {
-				await whopsdk.channels.sendMessage(channelId, {
-					content: response,
-				});
-				sentSuccessfully = true;
-				sendMethod = "channels.sendMessage";
-				console.log("✅ Reply sent successfully via channels.sendMessage");
-			} else if (whopsdk.chat?.messages?.create) {
-				await whopsdk.chat.messages.create(channelId, {
-					content: response,
-				});
-				sentSuccessfully = true;
-				sendMethod = "chat.messages.create";
-				console.log("✅ Reply sent successfully via chat.messages.create");
 			} else {
-				sendError = "Could not find any message sending method in Whop SDK";
+				sendError = "Could not find messages.create method in Whop SDK";
 				console.error("❌ Could not find messages.create method in Whop SDK");
 				console.error("Available SDK properties:", Object.keys(whopsdk));
-				if (whopsdk.channels) {
-					console.error("Available channels properties:", Object.keys(whopsdk.channels));
-				}
 			}
 		} catch (error: any) {
 			sendError = error.message || error.toString();

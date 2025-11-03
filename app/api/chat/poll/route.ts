@@ -42,23 +42,29 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 			return NextResponse.json({ error: "No channel configured" }, { status: 400 });
 		}
 
-		// Get recent messages from the channel
-		// Note: Adjust API calls based on actual Whop SDK structure
-		let messages: any;
+		// Get recent messages from the channel using Whop SDK
+		// Based on Whop SDK: client.messages.list({ channel_id, direction, first })
+		let messageList: any[] = [];
 		try {
-			// Try different possible API structures
-			if (whopsdk.channels?.messages?.list) {
-				messages = await whopsdk.channels.messages.list(channelId, {
-					limit: 20,
-				});
-			} else if (whopsdk.messages?.list) {
-				messages = await whopsdk.messages.list(channelId, {
-					limit: 20,
-				});
+			// Use the correct Whop SDK API structure
+			if (whopsdk.messages?.list) {
+				// messages.list() returns an async iterable, so we need to iterate
+				for await (const messageListResponse of whopsdk.messages.list({
+					channel_id: channelId,
+					direction: 'desc', // Most recent first
+					first: 20, // Get first 20 messages
+				})) {
+					// Extract messages from response (could be data, items, or direct array)
+					const messages = messageListResponse?.data || messageListResponse?.items || messageListResponse || [];
+					if (Array.isArray(messages)) {
+						messageList.push(...messages);
+					}
+					// Only take first batch (first: 20 should handle this, but break to be safe)
+					break;
+				}
 			} else {
-				// Fallback: Return error suggesting manual check
 				return NextResponse.json({
-					error: "Whop SDK API structure may differ. Please check SDK documentation for messages.list() method.",
+					error: "Whop SDK messages.list() method not available",
 					processed: 0,
 				}, { status: 500 });
 			}
@@ -69,10 +75,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 				processed: 0,
 			}, { status: 500 });
 		}
-
-		// Handle different response structures
-		const messageList = messages?.data || messages?.items || messages || [];
-		if (!Array.isArray(messageList) || messageList.length === 0) {
+		if (messageList.length === 0) {
 			return NextResponse.json({ processed: 0, message: "No new messages" });
 		}
 
@@ -121,34 +124,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 					botName,
 				);
 
-				// Send reply to chat
-				// Try different possible API structures
+				// Send reply to chat using Whop SDK
+				// Based on Whop SDK: client.messages.create({ channel_id, content })
 				let sentSuccessfully = false;
 				try {
-					if (whopsdk.channels?.messages?.create) {
-						await whopsdk.channels.messages.create(channelId, {
+					if (whopsdk.messages?.create) {
+						await whopsdk.messages.create({
+							channel_id: channelId,
 							content: response,
 						});
 						sentSuccessfully = true;
-					} else if (whopsdk.messages?.create) {
-						await whopsdk.messages.create(channelId, {
-							content: response,
-						});
-						sentSuccessfully = true;
-					} else if (whopsdk.channels?.sendMessage) {
-						await whopsdk.channels.sendMessage(channelId, {
-							content: response,
-						});
-						sentSuccessfully = true;
-					} else if (whopsdk.chat?.messages?.create) {
-						await whopsdk.chat.messages.create(channelId, {
-							content: response,
-						});
-						sentSuccessfully = true;
+						console.log("✅ Message sent successfully via messages.create");
 					} else {
 						console.error("Could not find messages.create method in Whop SDK");
 						console.error("Available SDK properties:", Object.keys(whopsdk));
-						throw new Error("Whop SDK API structure may differ for message creation");
+						throw new Error("Whop SDK messages.create() method not available");
 					}
 				} catch (msgError: any) {
 					console.error("Error sending message:", msgError);
