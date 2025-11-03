@@ -11,3 +11,8 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# Note: Scheduled functions are configured in Netlify Dashboard
+# The function file is at: netlify/functions/poll-chat.ts
+# After deploying, go to Netlify Dashboard → Functions → Scheduled Functions
+# and configure the schedule there
+
